@@ -4,6 +4,12 @@
 
 export function create(cfg) {
   const model = cfg.model || 'gemini-3.8-flash'
+  // Gemini 2.5+/3.x "think" before replying and the thoughts are billed against maxOutputTokens,
+  // which truncates short replies. Off by default; LLM_THINKING_BUDGET=-1 restores the model's default.
+  const thinkingBudget = Number.isFinite(cfg.thinkingBudget) ? cfg.thinkingBudget : 0
+  // Lite models don't think and answer 400 INVALID_ARGUMENT if thinkingConfig is sent at all.
+  // Learn that per model on the first 400 instead of hard-coding model names.
+  const rejectsThinkingConfig = new Set()
   let client
 
   async function getClient() {
@@ -25,17 +31,29 @@ export function create(cfg) {
     model,
     async chat({ system, messages, maxTokens, model: override }) {
       const ai = await getClient()
-      const res = await ai.models.generateContent({
-        model: override || model,
-        contents: messages.map((m) => ({
-          role: m.role === 'assistant' ? 'model' : 'user',
-          parts: toParts(m.content),
-        })),
-        config: {
-          ...(system ? { systemInstruction: system } : {}),
-          maxOutputTokens: maxTokens,
-        },
-      })
+      const m = override || model
+      const call = (withThinking) =>
+        ai.models.generateContent({
+          model: m,
+          contents: messages.map((msg) => ({
+            role: msg.role === 'assistant' ? 'model' : 'user',
+            parts: toParts(msg.content),
+          })),
+          config: {
+            ...(system ? { systemInstruction: system } : {}),
+            maxOutputTokens: maxTokens,
+            ...(withThinking ? { thinkingConfig: { thinkingBudget } } : {}),
+          },
+        })
+      const withThinking = thinkingBudget >= 0 && !rejectsThinkingConfig.has(m)
+      let res
+      try {
+        res = await call(withThinking)
+      } catch (err) {
+        if (!withThinking || err?.status !== 400) throw err
+        res = await call(false) // if this also fails, the 400 had another cause and propagates
+        rejectsThinkingConfig.add(m)
+      }
       return res.text ?? ''
     },
   }

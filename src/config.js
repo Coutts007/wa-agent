@@ -27,6 +27,9 @@ export const config = {
     provider: env('LLM_PROVIDER', 'anthropic'), // anthropic | gemini | mock
     model: env('LLM_MODEL', ''), // empty = provider default
     fallbackModel: env('LLM_FALLBACK_MODEL', ''), // used when the main model is overloaded (503/529/429)
+    // Gemini only. Thinking tokens come out of the reply budget, so a thinking model with a
+    // 300-token cap sends half a sentence. 0 = off (default, fine for short chat). -1 = let the model decide.
+    thinkingBudget: num('LLM_THINKING_BUDGET', 0),
     apiKey: env('LLM_API_KEY', ''), // falls back to ANTHROPIC_API_KEY / GEMINI_API_KEY
   },
 

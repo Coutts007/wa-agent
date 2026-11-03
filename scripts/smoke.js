@@ -13,7 +13,7 @@ const { openDb } = await import('../src/db.js')
 const { createLLM } = await import('../src/llm/index.js')
 const { createRouter } = await import('../src/router.js')
 const { jidUser } = await import('../src/utils.js')
-const { withRetry, isTransientError } = await import('../src/llm/index.js')
+const { withRetry, isTransientError, retryAfterMs } = await import('../src/llm/index.js')
 
 const SELF = '254700000001@s.whatsapp.net'
 const JANE = '254711111111@s.whatsapp.net'
@@ -186,6 +186,15 @@ assert.ok(!sent.some((s) => s.jid === GROUP), 'groups off by default')
   assert.equal(calls, 1, 'auth errors are not retried')
   assert.ok(isTransientError({ status: 529 }), 'overloaded is transient')
   assert.ok(!isTransientError({ status: 400 }), 'bad request is not')
+
+  // A daily-quota 429 ("retry in 23h") is not retried at all; a short Retry-After is honoured
+  const quotaErr = Object.assign(new Error('{"error":{"code":429,"status":"RESOURCE_EXHAUSTED","details":[{"@type":"type.googleapis.com/google.rpc.RetryInfo","retryDelay":"83418s"}]}}'), { status: 429 })
+  assert.equal(retryAfterMs(quotaErr), 83418000)
+  assert.equal(retryAfterMs(Object.assign(new Error('x'), { status: 429, headers: { 'retry-after': '2' } })), 2000)
+  assert.equal(retryAfterMs(new Error('fetch failed')), null)
+  calls = 0
+  await assert.rejects(() => withRetry(async () => { calls++; throw quotaErr }, { baseDelayMs: 1 }), /RESOURCE_EXHAUSTED/)
+  assert.equal(calls, 1, 'long quota waits are not retried')
 }
 
 // 14. An overloaded main model falls back to LLM_FALLBACK_MODEL; without one the error surfaces

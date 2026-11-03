@@ -84,17 +84,31 @@ export function isTransientError(err) {
   return /fetch failed|network|socket hang up|timed? ?out/i.test(String(err.message || ''))
 }
 
+/** How long the provider asked us to wait, in ms, if it said: Retry-After header or Gemini's RetryInfo. */
+export function retryAfterMs(err) {
+  const header = err?.headers?.['retry-after'] ?? err?.headers?.get?.('retry-after')
+  if (header != null && Number.isFinite(Number(header))) return Number(header) * 1000
+  const m = /"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"/.exec(String(err?.message || ''))
+  return m ? Number(m[1]) * 1000 : null
+}
+
 /**
  * Runs fn, retrying on transient errors with a short backoff. One lost call means a contact
  * never gets a reply (the message is not seen again), so a couple of retries matter here.
  */
-export async function withRetry(fn, { retries = 2, baseDelayMs = 1000, logger } = {}) {
+export async function withRetry(fn, { retries = 2, baseDelayMs = 1000, maxWaitMs = 30_000, logger } = {}) {
   for (let attempt = 0; ; attempt++) {
     try {
       return await fn()
     } catch (err) {
       if (attempt >= retries || !isTransientError(err)) throw err
-      const delay = baseDelayMs * 2 ** attempt
+      const asked = retryAfterMs(err)
+      if (asked != null && asked > maxWaitMs) {
+        // e.g. a daily quota: "retry in 23h". Retrying now is pointless; let the caller fall back.
+        logger?.warn({ status: statusOf(err), waitSec: Math.round(asked / 1000) }, 'provider asks for a long wait, not retrying')
+        throw err
+      }
+      const delay = Math.max(baseDelayMs * 2 ** attempt, asked ?? 0)
       logger?.warn({ err: err?.cause?.message || err?.message, attempt: attempt + 1, delay }, 'llm call failed, retrying')
       await new Promise((r) => setTimeout(r, delay))
     }
