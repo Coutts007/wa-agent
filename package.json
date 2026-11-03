@@ -1,0 +1,27 @@
+{
+  "name": "wa-agent",
+  "version": "0.1.0",
+  "description": "Personal WhatsApp agent: auto-replies while you're away, captures contacts' statuses and recommends ones to watch, and chats with you.",
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=20.12.0"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/index.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch src/index.js",
+    "smoke": "node --disable-warning=ExperimentalWarning scripts/smoke.js",
+    "reset-auth": "node -e \"import('node:fs').then(fs=>fs.rmSync('auth',{recursive:true,force:true}))\""
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.0.0",
+    "@google/genai": "^1.0.0",
+    "@whiskeysockets/baileys": "^6.7.0",
+    "pino": "^9.0.0",
+    "qrcode-terminal": "^0.12.0"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^11.0.0"
+  },
+  "license": "MIT"
+}
