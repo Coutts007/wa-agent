@@ -96,6 +96,7 @@ Everything is in `.env.example` with comments. The ones you'll actually touch:
 | Variable | Meaning |
 |---|---|
 | `LLM_PROVIDER`, `LLM_MODEL` | `anthropic` (default `claude-sonnet-5-5`; `claude-haiku-5-5` is cheaper; needs API credits) or `gemini` (default `gemini-3.8-flash`; `gemini-3.5-flash-lite` is cheaper; has a free tier) |
+| `LLM_FALLBACK_MODEL` | Optional second model of the same provider, used automatically when the main one is overloaded (503/529/429). Every call retries network blips and 5xx twice before giving up or falling back. |
 | `OWNER_NAME`, `OWNER_NUMBER`, `PERSONA` | Who the assistant speaks for, and what it may say about you |
 | `AUTO_REPLY_*` | Gates and rate limits described above |
 | `STATUS_DESCRIBE_MEDIA` | Set `false` to skip vision calls (cheaper; text statuses still work) |

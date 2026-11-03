@@ -23,10 +23,10 @@ export function create(cfg) {
 
   return {
     model,
-    async chat({ system, messages, maxTokens }) {
+    async chat({ system, messages, maxTokens, model: override }) {
       const ai = await getClient()
       const res = await ai.models.generateContent({
-        model,
+        model: override || model,
         contents: messages.map((m) => ({
           role: m.role === 'assistant' ? 'model' : 'user',
           parts: toParts(m.content),

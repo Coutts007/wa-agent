@@ -26,6 +26,7 @@ export const config = {
   llm: {
     provider: env('LLM_PROVIDER', 'anthropic'), // anthropic | gemini | mock
     model: env('LLM_MODEL', ''), // empty = provider default
+    fallbackModel: env('LLM_FALLBACK_MODEL', ''), // used when the main model is overloaded (503/529/429)
     apiKey: env('LLM_API_KEY', ''), // falls back to ANTHROPIC_API_KEY / GEMINI_API_KEY
   },
 

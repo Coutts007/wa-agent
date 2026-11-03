@@ -188,5 +188,17 @@ assert.ok(!sent.some((s) => s.jid === GROUP), 'groups off by default')
   assert.ok(!isTransientError({ status: 400 }), 'bad request is not')
 }
 
+// 14. An overloaded main model falls back to LLM_FALLBACK_MODEL; without one the error surfaces
+{
+  const warned = []
+  const log = { ...quiet, warn: (o) => warned.push(o) }
+  const primaryDown = await createLLM({ provider: 'mock', model: 'mock-overloaded', fallbackModel: 'mock' }, log)
+  const out = await primaryDown.chat({ messages: [{ role: 'user', content: 'hello' }] })
+  assert.match(out, /mock reply/, 'fallback model answered')
+  assert.ok(warned.some((w) => w.fallback === 'mock'), 'switch to fallback is logged')
+  const noFallback = await createLLM({ provider: 'mock', model: 'mock-overloaded' }, quiet)
+  await assert.rejects(() => noFallback.chat({ messages: [{ role: 'user', content: 'hello' }] }), /503/)
+}
+
 console.log(`\nAll smoke checks passed. ${sent.length} messages "sent", ${db.countActiveStatuses()} statuses stored.`)
 db.close()

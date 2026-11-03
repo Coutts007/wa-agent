@@ -24,12 +24,25 @@ export async function createLLM(cfg, logger) {
       throw new Error(`Unknown LLM_PROVIDER "${provider}" (use anthropic, gemini or mock)`)
   }
 
+  const fallbackModel = cfg.fallbackModel && cfg.fallbackModel !== impl.model ? cfg.fallbackModel : ''
+
   async function chat({ system, messages, maxTokens = 600 }) {
     const normalised = normalise(messages)
     if (!normalised.length) return ''
     const t0 = Date.now()
-    const out = await withRetry(() => impl.chat({ system, messages: normalised, maxTokens }), { logger })
-    logger?.debug({ provider, model: impl.model, ms: Date.now() - t0 }, 'llm call')
+    const call = (model) =>
+      withRetry(() => impl.chat({ system, messages: normalised, maxTokens, model }), { logger })
+    let model = impl.model
+    let out
+    try {
+      out = await call(model)
+    } catch (err) {
+      if (!fallbackModel || !isOverloadedError(err)) throw err
+      logger?.warn({ model, fallback: fallbackModel, status: statusOf(err) }, 'model unavailable, switching to fallback')
+      model = fallbackModel
+      out = await call(model)
+    }
+    logger?.debug({ provider, model, ms: Date.now() - t0 }, 'llm call')
     return (out || '').trim()
   }
 
@@ -48,17 +61,24 @@ export async function createLLM(cfg, logger) {
     })
   }
 
-  return { provider, model: impl.model, chat, describeImage }
+  return { provider, model: impl.model, fallbackModel, chat, describeImage }
 }
 
 const TRANSIENT_CODES = new Set(['ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'EAI_AGAIN', 'ENOTFOUND', 'EPIPE', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_SOCKET'])
 const TRANSIENT_STATUS = new Set([408, 429, 500, 502, 503, 504, 529])
+const OVERLOADED_STATUS = new Set([429, 500, 502, 503, 504, 529]) // another model may answer; a network error won't care
+
+const statusOf = (err) => Number(err?.status ?? err?.statusCode ?? err?.response?.status)
+
+/** The provider answered but could not serve this model right now (capacity, rate limit, 5xx). */
+export function isOverloadedError(err) {
+  return OVERLOADED_STATUS.has(statusOf(err))
+}
 
 /** Network blips and overloaded-server responses are worth one more try; auth/4xx errors are not. */
 export function isTransientError(err) {
   if (!err) return false
-  const status = err.status ?? err.statusCode ?? err.response?.status
-  if (TRANSIENT_STATUS.has(Number(status))) return true
+  if (TRANSIENT_STATUS.has(statusOf(err))) return true
   const codes = [err.code, err.cause?.code, ...(err.cause?.errors ?? err.errors ?? []).map((e) => e?.code)]
   if (codes.some((c) => TRANSIENT_CODES.has(c))) return true
   return /fetch failed|network|socket hang up|timed? ?out/i.test(String(err.message || ''))

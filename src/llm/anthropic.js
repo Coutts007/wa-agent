@@ -30,10 +30,10 @@ export function create(cfg) {
 
   return {
     model,
-    async chat({ system, messages, maxTokens }) {
+    async chat({ system, messages, maxTokens, model: override }) {
       const c = await getClient()
       const res = await c.messages.create({
-        model,
+        model: override || model,
         max_tokens: maxTokens,
         ...(system ? { system } : {}),
         messages: messages.map((m) => ({ role: m.role, content: toBlocks(m.content) })),

@@ -1,9 +1,11 @@
 // Offline mock provider for tests and dry runs (LLM_PROVIDER=mock). Costs nothing, calls nothing.
 
-export function create() {
+export function create(cfg = {}) {
   return {
-    model: 'mock',
-    async chat({ system = '', messages }) {
+    model: cfg.model || 'mock',
+    async chat({ system = '', messages, model }) {
+      // Test hook: a model named "mock-overloaded" behaves like a 503 from the provider.
+      if (model === 'mock-overloaded') throw Object.assign(new Error('503 UNAVAILABLE (mock)'), { status: 503 })
       const last = messages[messages.length - 1]
       const parts = typeof last.content === 'string' ? [{ type: 'text', text: last.content }] : last.content
       const hasImage = parts.some((p) => p.type === 'image')

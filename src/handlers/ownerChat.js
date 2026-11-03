@@ -137,6 +137,6 @@ function botStatus(ctx) {
     `Connection: ${wa.ready ? 'connected' : 'reconnecting'} · up ${upMin} min · host ${process.env.HOSTNAME || 'unknown'}`,
     `Auto-reply: ${autoReplyEnabled(ctx) ? 'on' : 'off'}${config.autoReply.groups ? ' (groups when @mentioned)' : ''} · persona: ${customPersona ? 'custom' : config.autoReply.persona ? '.env' : 'none'}`,
     `Statuses stored (24h): ${db.countActiveStatuses()} · capture ${config.status.capture ? 'on' : 'off'} · describe media ${config.status.describeMedia ? 'on' : 'off'}`,
-    `Model: ${llm.provider}/${llm.model} · Node ${process.version}`,
+    `Model: ${llm.provider}/${llm.model}${llm.fallbackModel ? ` (fallback ${llm.fallbackModel})` : ''} · Node ${process.version}`,
   ].join('\n')
 }
